@@ -1,0 +1,74 @@
+---
+- name: Add Tailscale GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: '0644'
+
+- name: Add Tailscale apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+      https://pkgs.tailscale.com/stable/debian {{ ansible_facts['distribution_release'] }} main
+    state: present
+    filename: tailscale
+    update_cache: true
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+
+- name: Enable and start tailscaled service
+  ansible.builtin.systemd:
+    name: tailscaled
+    enabled: true
+    state: started
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Get current Tailscale backend state
+  ansible.builtin.command: tailscale status --json
+  register: _ts_status_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse Tailscale backend state
+  ansible.builtin.set_fact:
+    _ts_backend_state: "{{ (_ts_status_raw.stdout | from_json).BackendState | default('Stopped') }}"
+  when:
+    - _ts_status_raw.rc == 0
+    - _ts_status_raw.stdout | length > 2
+
+- name: Default Tailscale state when not parseable
+  ansible.builtin.set_fact:
+    _ts_backend_state: "Stopped"
+  when: _ts_backend_state is not defined
+
+- name: Join tailnet with auth key
+  ansible.builtin.shell: >
+    tailscale up
+    --authkey='{{ tailscale_authkey }}'
+    {{ tailscale_up_flags }}
+    {{ '--ssh' if tailscale_ssh_enabled | bool else '' }}
+  no_log: true
+  when:
+    - tailscale_authkey is defined
+    - tailscale_authkey | length > 0
+    - _ts_backend_state != "Running"
+  changed_when: true
+
+- name: Wait for Tailscale to obtain an IP address
+  ansible.builtin.command: tailscale ip -4
+  register: _ts_ip_poll
+  until: _ts_ip_poll.rc == 0 and _ts_ip_poll.stdout | trim | length > 0
+  retries: 12
+  delay: 5
+  changed_when: false
+
+- name: Set Tailscale IP as host fact for subsequent roles
+  ansible.builtin.set_fact:
+    tailscale_ipv4: "{{ _ts_ip_poll.stdout | trim }}"
+
+- name: Display Tailscale IP
+  ansible.builtin.debug:
+    msg: "Tailscale IP: {{ tailscale_ipv4 }}"

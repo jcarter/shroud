@@ -1,0 +1,6 @@
+---
+disable_avahi: true
+disable_bluetooth: true
+# Samba: disable only when explicitly requested per host.
+# Set disable_samba: true in host_vars for hosts where Samba is unwanted.
+disable_samba: false

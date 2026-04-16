@@ -1,0 +1,13 @@
+---
+firewall_public_tcp_ports:
+  - 80
+  - 443
+
+docker_public_tcp_ports:
+  - 80
+  - 443
+
+dokploy_port: 3000
+dokploy_tailscale_only: true
+
+ufw_forward_policy: "DROP"

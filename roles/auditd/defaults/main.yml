@@ -1,0 +1,4 @@
+---
+audit_log_size: 8192
+audit_num_logs: 5
+audit_backlog_limit: 8192

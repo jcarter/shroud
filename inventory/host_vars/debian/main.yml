@@ -1,0 +1,7 @@
+---
+# Host-specific overrides for the debian host.
+# After the first run, set ansible_host to the Tailscale IP or MagicDNS name:
+# ansible_host: 100.x.y.z
+# ansible_host: debian.your-tailnet.ts.net
+
+disable_samba: false

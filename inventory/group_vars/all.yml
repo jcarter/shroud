@@ -1,0 +1,87 @@
+---
+# =============================================================================
+# devsec.hardening — ssh_hardening role variables
+# https://github.com/dev-sec/ansible-collection-hardening
+# =============================================================================
+ssh_permit_root_login: "no"
+ssh_password_authentication: false
+ssh_challenge_response_authentication: false
+ssh_use_pam: false
+ssh_x11_forwarding: false
+ssh_max_auth_tries: 3
+ssh_login_grace_time: 20
+ssh_client_alive_interval: 300
+ssh_client_alive_count: 2
+ssh_allowed_users:
+  - deploy    # must match ansible_user in inventory/hosts.yml
+sftp_enabled: true
+
+# =============================================================================
+# devsec.hardening — os_hardening role variables
+# =============================================================================
+# CRITICAL: Docker requires IP forwarding — must NOT be disabled by devsec.
+sysctl_overwrite:
+  net.ipv4.ip_forward: 1
+  net.ipv6.conf.all.forwarding: 0
+
+# =============================================================================
+# Tailscale role (custom)
+# Provide tailscale_authkey via --extra-vars or Ansible Vault — never in plaintext.
+# tailscale_authkey: "tskey-auth-xxxxxxxxxxxx"
+# =============================================================================
+tailscale_ssh_enabled: false   # Enable Tailscale SSH daemon (separate from sshd)
+tailscale_up_flags: "--accept-routes"
+
+# =============================================================================
+# Firewall role (custom)
+# NOTE: SSH is NOT in firewall_public_tcp_ports — it is allowed only on
+# the tailscale0 interface via a separate ufw rule.
+# =============================================================================
+firewall_public_tcp_ports:
+  - 80    # HTTP  — Traefik
+  - 443   # HTTPS — Traefik
+
+docker_public_tcp_ports:
+  - 80
+  - 443
+
+dokploy_port: 3000
+dokploy_tailscale_only: true   # true = Dokploy panel only via Tailscale
+
+ufw_forward_policy: "DROP"
+
+# =============================================================================
+# Fail2ban role (custom)
+# =============================================================================
+fail2ban_bantime: "1h"
+fail2ban_findtime: "10m"
+fail2ban_maxretry: 5
+fail2ban_backend: "systemd"
+
+# =============================================================================
+# Auto-updates role (custom)
+# =============================================================================
+auto_reboot: false
+auto_update_mail: ""           # Set to admin email for reboot/failure notices
+auto_update_remove_unused: true
+
+# =============================================================================
+# Auditd role (custom)
+# =============================================================================
+audit_log_size: 8192
+audit_num_logs: 5
+audit_backlog_limit: 8192
+
+# =============================================================================
+# Service cleanup role (custom)
+# =============================================================================
+disable_avahi: true
+disable_bluetooth: true
+disable_samba: false           # Set true only on hosts where Samba is unwanted
+
+# =============================================================================
+# Dokploy role (custom)
+# =============================================================================
+dokploy_install: false        # Set true to install Dokploy on this host
+dokploy_version: ""           # Empty = detect latest stable; set e.g. "v0.26.6" to pin
+dokploy_advertise_addr: ""    # Empty = auto-detect private LAN IP; set explicitly on public-only VPSes

@@ -1,0 +1,57 @@
+---
+# Main hardening playbook.
+# Run order is critical:
+#   1. baseline       — installs packages needed by subsequent roles
+#   2. tailscale      — joins tailnet (must complete BEFORE firewall locks SSH)
+#   3. os_hardening   — kernel/sysctl hardening (devsec.hardening)
+#   4. ssh_hardening  — sshd config (devsec.hardening)
+#   5. firewall       — UFW + ufw-docker (blocks public SSH after Tailscale is up)
+#   6. fail2ban       — SSH jail (defense-in-depth)
+#   7. auto_updates   — unattended-upgrades
+#   8. auditd         — audit logging
+#   9. service_cleanup — disable unnecessary services
+#  10. dokploy        — Dokploy install (optional, gated by dokploy_install)
+# First run:
+#   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml \
+#     --extra-vars "tailscale_authkey=tskey-auth-..."
+#
+# Subsequent runs (after updating ansible_host to Tailscale IP):
+#   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml
+#
+# Target a single role with tags:
+#   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml --tags firewall
+
+- name: Harden server
+  hosts: all
+  gather_facts: true
+
+  roles:
+    - role: baseline
+      tags: [baseline]
+
+    - role: tailscale
+      tags: [tailscale]
+
+    - role: devsec.hardening.os_hardening
+      tags: [os_hardening]
+
+    - role: devsec.hardening.ssh_hardening
+      tags: [ssh_hardening]
+
+    - role: firewall
+      tags: [firewall]
+
+    - role: fail2ban
+      tags: [fail2ban]
+
+    - role: auto_updates
+      tags: [auto_updates]
+
+    - role: auditd
+      tags: [auditd]
+
+    - role: service_cleanup
+      tags: [service_cleanup]
+
+    - role: dokploy
+      tags: [dokploy]

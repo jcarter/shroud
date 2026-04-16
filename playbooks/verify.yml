@@ -1,0 +1,179 @@
+---
+# Post-hardening verification playbook.
+# Run after harden.yml to confirm all security controls are active.
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.yml playbooks/verify.yml
+
+- name: Verify server hardening
+  hosts: all
+  gather_facts: false
+  become: true
+
+  tasks:
+    # ------------------------------------------------------------------ UFW
+    - name: Get UFW status
+      ansible.builtin.command: ufw status verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW is active
+      ansible.builtin.assert:
+        that: "'Status: active' in ufw_status.stdout"
+        fail_msg: "FAIL — UFW is not active"
+        success_msg: "PASS — UFW is active"
+
+    - name: Display UFW rules
+      ansible.builtin.debug:
+        var: ufw_status.stdout_lines
+
+    # ------------------------------------------------------------------ Tailscale
+    - name: Get Tailscale IPv4 address
+      ansible.builtin.command: tailscale ip -4
+      register: tailscale_ip
+      changed_when: false
+      failed_when: tailscale_ip.rc != 0
+
+    - name: Assert Tailscale has CGNAT address (100.x.x.x)
+      ansible.builtin.assert:
+        that: tailscale_ip.stdout | trim is match('^100\\.')
+        fail_msg: "FAIL \u2014 Tailscale IP {{ tailscale_ip.stdout | trim }} not in 100.64/10"
+        success_msg: "PASS \u2014 Tailscale IP: {{ tailscale_ip.stdout | trim }}"
+
+    - name: Display Tailscale IP
+      ansible.builtin.debug:
+        msg: "Tailscale IP: {{ tailscale_ip.stdout | trim }}"
+
+    - name: Get Tailscale status
+      ansible.builtin.command: tailscale status
+      register: tailscale_status
+      changed_when: false
+
+    - name: Display Tailscale status
+      ansible.builtin.debug:
+        var: tailscale_status.stdout_lines
+
+    # ------------------------------------------------------------------ fail2ban
+    - name: Check fail2ban service state
+      ansible.builtin.command: systemctl is-active fail2ban
+      register: fail2ban_active
+      changed_when: false
+      failed_when: false
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that: "fail2ban_active.stdout == 'active'"
+        fail_msg: "FAIL — fail2ban is not running (state: {{ fail2ban_active.stdout }})"
+        success_msg: "PASS — fail2ban is running"
+
+    - name: Check fail2ban SSH jail status
+      ansible.builtin.command: fail2ban-client status sshd
+      register: fail2ban_ssh
+      changed_when: false
+      failed_when: false
+
+    - name: Display fail2ban SSH jail
+      ansible.builtin.debug:
+        var: fail2ban_ssh.stdout_lines
+
+    # ------------------------------------------------------------------ auditd
+    - name: Check auditd service state
+      ansible.builtin.command: systemctl is-active auditd
+      register: auditd_active
+      changed_when: false
+      failed_when: false
+
+    - name: Assert auditd is active
+      ansible.builtin.assert:
+        that: "auditd_active.stdout == 'active'"
+        fail_msg: "FAIL — auditd is not running"
+        success_msg: "PASS — auditd is running"
+
+    - name: Check loaded audit rules
+      ansible.builtin.command: auditctl -l
+      register: audit_rules
+      changed_when: false
+
+    - name: Display audit rule count
+      ansible.builtin.debug:
+        msg: "Audit rules loaded: {{ audit_rules.stdout_lines | length }}"
+
+    # ------------------------------------------------------------------ unattended-upgrades
+    - name: Check unattended-upgrades service state
+      ansible.builtin.command: systemctl is-active unattended-upgrades
+      register: uu_active
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unattended-upgrades is active
+      ansible.builtin.assert:
+        that: "uu_active.stdout == 'active'"
+        fail_msg: "FAIL — unattended-upgrades is not running"
+        success_msg: "PASS — unattended-upgrades is running"
+
+    # ------------------------------------------------------------------ sysctl
+    - name: Check critical sysctl values
+      ansible.builtin.command: "sysctl -n {{ item.key }}"
+      register: sysctl_results
+      loop:
+        - {key: "net.ipv4.ip_forward",              expected: "1"}
+        - {key: "kernel.randomize_va_space",         expected: "2"}
+        - {key: "net.ipv4.conf.all.rp_filter",       expected: "1"}
+        - {key: "net.ipv4.conf.all.accept_redirects", expected: "0"}
+      changed_when: false
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Assert sysctl values
+      ansible.builtin.assert:
+        that: "item.stdout | trim == item.item.expected"
+        fail_msg: "FAIL — {{ item.item.key }} = {{ item.stdout | trim }} (expected {{ item.item.expected }})"
+        success_msg: "PASS — {{ item.item.key }} = {{ item.stdout | trim }}"
+      loop: "{{ sysctl_results.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+
+    - name: Assert IP forwarding is enabled (required for Docker)
+      ansible.builtin.assert:
+        that: "(sysctl_results.results | selectattr('item.key', 'equalto', 'net.ipv4.ip_forward') | first).stdout | trim == '1'"
+        fail_msg: "FAIL — IP forwarding disabled; Docker networking will break"
+        success_msg: "PASS — IP forwarding enabled (Docker compatible)"
+
+    # ------------------------------------------------------------------ listening ports
+    - name: List listening ports
+      ansible.builtin.command: ss -tlnp
+      register: listening_ports
+      changed_when: false
+
+    - name: Display listening ports
+      ansible.builtin.debug:
+        var: listening_ports.stdout_lines
+
+    # ------------------------------------------------------------------ dokploy
+    - name: Check Dokploy Swarm service is deployed
+      ansible.builtin.command: docker service inspect dokploy
+      register: dokploy_svc
+      changed_when: false
+      failed_when: false
+      when: dokploy_install | bool
+
+    - name: Assert Dokploy service is deployed
+      ansible.builtin.assert:
+        that: "dokploy_svc.rc == 0"
+        fail_msg: "FAIL \u2014 Dokploy service is not deployed"
+        success_msg: "PASS \u2014 Dokploy service is deployed"
+      when: dokploy_install | bool
+
+    # ------------------------------------------------------------------ summary
+    - name: Hardening verification summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "  Hardening Verification Complete"
+          - "=========================================="
+          - "UFW:                 active"
+          - "Tailscale IP:        {{ tailscale_ip.stdout | trim }}"
+          - "fail2ban:            {{ fail2ban_active.stdout }}"
+          - "auditd:              {{ auditd_active.stdout }}"
+          - "unattended-upgrades: {{ uu_active.stdout }}"
+          - "=========================================="

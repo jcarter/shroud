@@ -1,0 +1,105 @@
+---
+# Set DEFAULT_FORWARD_POLICY before enabling UFW to avoid forwarding surprises.
+# Docker injects its own iptables rules before UFW chains, so Docker traffic
+# still works; the ufw-docker DOCKER-USER chain rules (deployed below) give
+# UFW visibility into container-to-host routing.
+- name: Set UFW default forward policy
+  ansible.builtin.lineinfile:
+    path: /etc/default/ufw
+    regexp: '^DEFAULT_FORWARD_POLICY='
+    line: 'DEFAULT_FORWARD_POLICY="{{ ufw_forward_policy }}"'
+    state: present
+  notify: Reload UFW
+
+- name: Set UFW default incoming policy to deny
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Set UFW default outgoing policy to allow
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+# SSH is intentionally NOT in firewall_public_tcp_ports.
+# It is only reachable via the Tailscale WireGuard interface.
+- name: Allow SSH on Tailscale interface only
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    interface: tailscale0
+    direction: in
+    comment: "SSH via Tailscale only — not public internet"
+
+- name: Allow public TCP ports (HTTP/HTTPS for Traefik)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: tcp
+    comment: "Public port {{ item }}"
+  loop: "{{ firewall_public_tcp_ports }}"
+
+- name: Allow Dokploy panel via Tailscale only
+  community.general.ufw:
+    rule: allow
+    port: "{{ dokploy_port | string }}"
+    proto: tcp
+    interface: tailscale0
+    direction: in
+    comment: "Dokploy panel via Tailscale only"
+  when: dokploy_tailscale_only | bool
+
+- name: Allow Dokploy panel publicly
+  community.general.ufw:
+    rule: allow
+    port: "{{ dokploy_port | string }}"
+    proto: tcp
+    comment: "Dokploy panel public access"
+  when: not (dokploy_tailscale_only | bool)
+
+# Deploy the ufw-docker DOCKER-USER chain rules.
+# This adds a second *filter section after the existing after.rules content.
+# The blockinfile marker makes subsequent runs idempotent.
+# Source: https://github.com/chaifeng/ufw-docker
+- name: Deploy ufw-docker DOCKER-USER chain rules
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} UFW AND DOCKER"
+    block: |
+      *filter
+      :ufw-user-forward - [0:0]
+      :ufw-docker-logging-deny - [0:0]
+      :DOCKER-USER - [0:0]
+      -A DOCKER-USER -j ufw-user-forward
+      -A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+      -A DOCKER-USER -m conntrack --ctstate INVALID -j DROP
+      -A DOCKER-USER -i docker0 -o docker0 -j ACCEPT
+      -A DOCKER-USER -j RETURN -s 10.0.0.0/8
+      -A DOCKER-USER -j RETURN -s 172.16.0.0/12
+      -A DOCKER-USER -j RETURN -s 192.168.0.0/16
+      -A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d 10.0.0.0/8
+      -A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d 172.16.0.0/12
+      -A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d 192.168.0.0/16
+      -A DOCKER-USER -j RETURN
+      -A ufw-docker-logging-deny -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW DOCKER BLOCK] "
+      -A ufw-docker-logging-deny -j DROP
+      COMMIT
+    state: present
+  notify: Reload UFW
+
+# Allow Docker container traffic to reach public ports through UFW routing.
+# Without these route rules, UFW would block forwarded traffic to containers
+# even though Docker's own iptables rules would pass it.
+- name: Allow Docker container routing for public ports
+  community.general.ufw:
+    rule: allow
+    route: true
+    proto: tcp
+    port: "{{ item | string }}"
+    comment: "Docker route for port {{ item }}"
+  loop: "{{ docker_public_tcp_ports }}"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled

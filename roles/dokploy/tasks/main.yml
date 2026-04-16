@@ -1,0 +1,29 @@
+---
+# All tasks are gated by dokploy_install. Running `--tags dokploy` without
+# setting dokploy_install=true is a safe no-op.
+#
+# Install notes:
+#   - Dokploy uses Docker Swarm (not plain Compose). The install script calls
+#     `docker swarm leave --force` before `docker swarm init`, which is
+#     destructive on re-run — the service-inspect guard below prevents that.
+#   - The install script exits non-zero if ports 80, 443, or 3000 are occupied.
+#     Run this role before any service that binds those ports.
+#   - Docker is installed by the Dokploy install script if not already present.
+
+- name: Check if Dokploy Swarm service already exists
+  ansible.builtin.command: docker service inspect dokploy
+  register: dokploy_service_check
+  changed_when: false
+  failed_when: false
+  when: dokploy_install | bool
+
+- name: Run Dokploy install script
+  ansible.builtin.shell:
+    cmd: curl -sSL https://dokploy.com/install.sh | sh
+  environment:
+    # Empty string falls through bash's :- operator to the script's auto-detection.
+    DOKPLOY_VERSION: "{{ dokploy_version }}"
+    ADVERTISE_ADDR: "{{ dokploy_advertise_addr }}"
+  when:
+    - dokploy_install | bool
+    - dokploy_service_check.rc != 0

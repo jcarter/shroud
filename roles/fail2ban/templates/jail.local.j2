@@ -1,0 +1,14 @@
+[DEFAULT]
+bantime   = {{ fail2ban_bantime }}
+findtime  = {{ fail2ban_findtime }}
+maxretry  = {{ fail2ban_maxretry }}
+backend   = {{ fail2ban_backend }}
+
+# SSH jail — defense-in-depth even though SSH is only reachable via Tailscale.
+# Aggressive mode also checks PAM / pre-auth failures.
+[sshd]
+enabled  = true
+mode     = aggressive
+port     = ssh
+filter   = sshd
+logpath  = %(sshd_log)s

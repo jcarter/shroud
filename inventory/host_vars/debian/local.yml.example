@@ -1,0 +1,21 @@
+---
+# Copy this file to local.yml (gitignored). It is loaded automatically — no flags needed.
+#
+# Connection — replace with your server's actual address and user.
+# Use the public IP for the first run; switch to the Tailscale address afterwards.
+ansible_host: 1.2.3.4
+ansible_user: youruser
+
+# Must match ansible_user — controls which Unix accounts sshd accepts.
+ssh_allowed_users:
+  - youruser
+
+# Tailscale pre-auth key (generate at https://login.tailscale.com/admin/settings/keys).
+# The playbook skips 'tailscale up' if the node is already Running, so a reusable key works.
+#
+# Option A: 1Password lookup — requires 'op' CLI authenticated (automatic on macOS with
+#           1Password desktop running). Store as an item named "Tailscale Auth Key".
+tailscale_authkey: "{{ lookup('community.general.onepassword', 'Tailscale Auth Key', field='password') }}"
+#
+# Option B: plain value — safe only because this file is gitignored.
+# tailscale_authkey: tskey-auth-...

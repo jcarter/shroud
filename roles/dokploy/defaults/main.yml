@@ -1,0 +1,14 @@
+---
+# Set true to run the Dokploy install script on this host.
+# Running `--tags dokploy` without enabling this is a safe no-op.
+dokploy_install: false
+
+# Dokploy version to install. Empty string = detect latest stable from GitHub.
+# Pin to a specific release tag (e.g. "v0.26.6") for reproducible deployments.
+dokploy_version: ""
+
+# Docker Swarm advertise address. The install script's auto-detection only matches
+# RFC-1918 ranges (10.x, 172.16-31.x, 192.168.x). If the server has no private LAN IP
+# — common on public-only VPSes — set this explicitly to the server's primary IP.
+# Tailscale's 100.x CGNAT range does NOT match auto-detection.
+dokploy_advertise_addr: ""
