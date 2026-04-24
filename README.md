@@ -1,4 +1,4 @@
-# secure-server-setup
+# Shroud - Secure Server Setup
 
 Ansible playbook for hardening new Debian/Ubuntu VPS instances. Run from macOS; targets servers where a non-root sudo user with SSH key access already exists.
 
@@ -22,7 +22,7 @@ Role order is load-bearing: Tailscale must be up **before** the firewall role bl
 **On the control machine (macOS):**
 ```bash
 brew install ansible
-cd ~/Source/secure-server-setup
+cd ~/Source/shroud
 ansible-galaxy collection install -r requirements.yml
 ```
 

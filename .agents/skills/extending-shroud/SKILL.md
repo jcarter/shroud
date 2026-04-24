@@ -1,9 +1,9 @@
 ---
-name: extending-secure-server-setup
-description: Use when adding new roles, modifying firewall rules, adding hosts, or integrating new services into the secure-server-setup Ansible project
+name: extending-shroud
+description: Use when adding new roles, modifying firewall rules, adding hosts, or integrating new services into the Shroud Ansible project
 ---
 
-# Extending secure-server-setup
+# Extending Shroud
 
 ## Overview
 
