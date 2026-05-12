@@ -43,4 +43,20 @@ flowchart TD
     Admin == "WireGuard tunnel" ==> TS22 & TS3000
     TS22 --> SSHD
     TS3000 --> DOKPLOY
+
+    classDef internet fill:#e8eaf6,stroke:#5c6bc0,color:#000
+    classDef cloudflare fill:#fff3e0,stroke:#ef6c00,color:#000
+    classDef tailscale fill:#e3f2fd,stroke:#1565c0,color:#000
+    classDef lan fill:#e8f5e9,stroke:#2e7d32,color:#000
+    classDef server fill:#f3e5f5,stroke:#6a1b9a,color:#000
+    classDef firewall fill:#fce4ec,stroke:#c62828,color:#000
+    classDef docker fill:#e0f7fa,stroke:#00695c,color:#000
+
+    class INET internet
+    class CF cloudflare
+    class TS_NET tailscale
+    class LAN lan
+    class SERVER server
+    class UFW firewall
+    class DOCKER docker
 ```
