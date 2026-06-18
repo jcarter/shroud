@@ -62,6 +62,8 @@
 # This adds a second *filter section after the existing after.rules content.
 # The blockinfile marker makes subsequent runs idempotent.
 # Source: https://github.com/chaifeng/ufw-docker
+# Include 100.64.0.0/10 so Tailscale clients can reach Docker-published services
+# such as Dokploy when the panel is restricted to tailscale0.
 - name: Deploy ufw-docker DOCKER-USER chain rules
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
@@ -78,6 +80,7 @@
       -A DOCKER-USER -j RETURN -s 10.0.0.0/8
       -A DOCKER-USER -j RETURN -s 172.16.0.0/12
       -A DOCKER-USER -j RETURN -s 192.168.0.0/16
+      -A DOCKER-USER -j RETURN -s 100.64.0.0/10
       -A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d 10.0.0.0/8
       -A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d 172.16.0.0/12
       -A DOCKER-USER -j ufw-docker-logging-deny -m conntrack --ctstate NEW -d 192.168.0.0/16

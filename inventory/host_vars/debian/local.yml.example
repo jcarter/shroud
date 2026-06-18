@@ -13,9 +13,9 @@ ssh_allowed_users:
 # Tailscale pre-auth key (generate at https://login.tailscale.com/admin/settings/keys).
 # The playbook skips 'tailscale up' if the node is already Running, so a reusable key works.
 #
-# Option A: 1Password lookup — requires 'op' CLI authenticated (automatic on macOS with
-#           1Password desktop running). Store as an item named "Tailscale Auth Key".
-tailscale_authkey: "{{ lookup('community.general.onepassword', 'Tailscale Auth Key', field='password') }}"
+# Option A: 1Password lookup — requires the 'op' CLI signed in and
+#           1Password desktop CLI integration enabled. Store the key in the "Tailscale" item's password field.
+tailscale_authkey: "{{ lookup('community.general.onepassword', 'Tailscale', field='password') }}"
 #
 # Option B: plain value — safe only because this file is gitignored.
 # tailscale_authkey: tskey-auth-...

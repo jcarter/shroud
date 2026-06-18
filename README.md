@@ -21,13 +21,13 @@ Role order is load-bearing: Tailscale must be up **before** the firewall role bl
 
 **On the control machine (macOS):**
 ```bash
-brew install ansible
+brew install ansible 1password-cli
 cd ~/Source/shroud
 ansible-galaxy collection install -r requirements.yml
 ```
 
-**Tailscale pre-auth key:**
-Generate at https://login.tailscale.com/admin/settings/keys. Set `tailscale_authkey` in your `host_vars/debian/local.yml` (see Inventory below) — or pass at runtime via `--extra-vars`.
+**Tailscale pre-auth key (1Password):**
+Sign in with `op`, then enable 1Password desktop CLI integration. Generate a reusable pre-auth key at https://login.tailscale.com/admin/settings/keys and store it in the `password` field of an item named `Tailscale`. The local vars template reads it with `lookup('community.general.onepassword', 'Tailscale', field='password')`; run the playbook normally.
 
 **Target server:**
 - Debian 12+ or Ubuntu 22.04+
@@ -43,7 +43,7 @@ Copy the host_vars template and fill in your connection details:
 cp inventory/host_vars/debian/local.yml.example inventory/host_vars/debian/local.yml
 ```
 
-Edit `local.yml` with your server's IP, user, and Tailscale auth key. This file is gitignored and loaded automatically — no extra flags needed. After the first run, switch `ansible_host` to the Tailscale IP (e.g. `100.x.y.z`) or MagicDNS name.
+Edit `local.yml` with your server's IP and user. The Tailscale auth key is read from the 1Password item `Tailscale` by default. This file is gitignored and loaded automatically — no extra flags needed. After the first run, switch `ansible_host` to the Tailscale IP (e.g. `100.x.y.z`) or MagicDNS name.
 
 ## Usage
 
@@ -77,7 +77,7 @@ Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (includi
 
 | Variable | Default | Description |
 |---|---|---|
-| `tailscale_authkey` | _(none — required)_ | Tailscale pre-auth key. Set in `host_vars/*/local.yml` (supports 1Password lookup) or pass via `--extra-vars`. |
+| `tailscale_authkey` | _(none — required)_ | Tailscale pre-auth key. Set in `host_vars/*/local.yml`; the template reads the 1Password item `Tailscale` password field. |
 | `tailscale_ssh_enabled` | `false` | Enable Tailscale SSH daemon (separate from sshd). |
 | `firewall_public_tcp_ports` | `[80, 443]` | TCP ports open to the public internet. |
 | `dokploy_port` | `3000` | Dokploy panel port. |
