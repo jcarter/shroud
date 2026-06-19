@@ -1,25 +1,35 @@
 ---
-- name: Add Tailscale GPG key
+- name: Add Tailscale archive keyring
   ansible.builtin.get_url:
     url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: '0644'
+  register: tailscale_keyring
 
-- name: Add Tailscale apt repository
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
-      https://pkgs.tailscale.com/stable/debian {{ ansible_facts['distribution_release'] }} main
-    state: present
-    filename: tailscale
+- name: Add Tailscale apt source list
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts['distribution_release'] }}.tailscale-keyring.list"
+    dest: /etc/apt/sources.list.d/tailscale.list
+    mode: '0644'
+  register: tailscale_repository
+
+- name: Update apt cache after Tailscale repository changes
+  ansible.builtin.apt:
     update_cache: true
+  when: tailscale_keyring.changed or tailscale_repository.changed
+
+- name: Determine whether Tailscale runtime tasks are safe
+  ansible.builtin.set_fact:
+    tailscale_runtime_tasks_safe: "{{ (not (ansible_check_mode | bool)) or ((not (tailscale_keyring.changed | bool)) and (not (tailscale_repository.changed | bool))) }}"
 
 - name: Install Tailscale
+  when: tailscale_runtime_tasks_safe | bool
   ansible.builtin.apt:
     name: tailscale
     state: present
 
 - name: Enable and start tailscaled service
+  when: tailscale_runtime_tasks_safe | bool
   ansible.builtin.systemd:
     name: tailscaled
     enabled: true
@@ -27,6 +37,7 @@
   ignore_errors: "{{ ansible_check_mode }}"
 
 - name: Get current Tailscale backend state
+  when: tailscale_runtime_tasks_safe | bool
   ansible.builtin.command: tailscale status --json
   register: _ts_status_raw
   changed_when: false
@@ -36,13 +47,16 @@
   ansible.builtin.set_fact:
     _ts_backend_state: "{{ (_ts_status_raw.stdout | from_json).BackendState | default('Stopped') }}"
   when:
-    - _ts_status_raw.rc == 0
-    - _ts_status_raw.stdout | length > 2
+    - tailscale_runtime_tasks_safe | bool
+    - _ts_status_raw.rc | default(1) == 0
+    - _ts_status_raw.stdout | default('') | length > 2
 
 - name: Default Tailscale state when not parseable
   ansible.builtin.set_fact:
     _ts_backend_state: "Stopped"
-  when: _ts_backend_state is not defined
+  when:
+    - tailscale_runtime_tasks_safe | bool
+    - _ts_backend_state is not defined
 
 - name: Join tailnet with auth key
   ansible.builtin.shell: >
@@ -52,9 +66,10 @@
     {{ '--ssh' if tailscale_ssh_enabled | bool else '' }}
   no_log: true
   when:
+    - tailscale_runtime_tasks_safe | bool
     - tailscale_authkey is defined
     - tailscale_authkey | length > 0
-    - _ts_backend_state != "Running"
+    - (_ts_backend_state | default('Stopped')) != "Running"
   changed_when: true
 
 - name: Wait for Tailscale to obtain an IP address
@@ -64,11 +79,14 @@
   retries: 12
   delay: 5
   changed_when: false
+  when: tailscale_runtime_tasks_safe | bool
 
 - name: Set Tailscale IP as host fact for subsequent roles
   ansible.builtin.set_fact:
     tailscale_ipv4: "{{ _ts_ip_poll.stdout | trim }}"
+  when: tailscale_runtime_tasks_safe | bool
 
 - name: Display Tailscale IP
   ansible.builtin.debug:
     msg: "Tailscale IP: {{ tailscale_ipv4 }}"
+  when: tailscale_runtime_tasks_safe | bool
