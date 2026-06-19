@@ -3,3 +3,4 @@
   ansible.builtin.systemd:
     name: fail2ban
     state: restarted
+  when: fail2ban_runtime_tasks_safe | default(true) | bool

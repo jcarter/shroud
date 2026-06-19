@@ -1,4 +1,15 @@
 ---
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    update_cache: false
+  register: fail2ban_package
+
+- name: Determine fail2ban runtime task safety
+  ansible.builtin.set_fact:
+    fail2ban_runtime_tasks_safe: "{{ (not (ansible_check_mode | bool)) or (not (fail2ban_package.changed | bool)) }}"
+
 - name: Deploy fail2ban jail.local
   ansible.builtin.template:
     src: jail.local.j2
@@ -7,6 +18,7 @@
     owner: root
     group: root
   notify: Restart fail2ban
+  when: fail2ban_runtime_tasks_safe | bool
 
 - name: Enable and start fail2ban
   ansible.builtin.systemd:
@@ -14,3 +26,4 @@
     enabled: true
     state: started
   ignore_errors: "{{ ansible_check_mode }}"
+  when: fail2ban_runtime_tasks_safe | bool
