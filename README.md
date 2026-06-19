@@ -27,7 +27,7 @@ ansible-galaxy collection install -r requirements.yml
 ```
 
 **Tailscale pre-auth key (1Password):**
-Sign in with `op`, then enable 1Password desktop CLI integration. Generate a reusable pre-auth key at https://login.tailscale.com/admin/settings/keys and store it in the `password` field of an item named `Tailscale`. The local vars template reads it with `lookup('community.general.onepassword', 'Tailscale', field='password')`; run the playbook normally.
+Sign in with `op`, then enable 1Password desktop CLI integration. Generate a new non-reusable pre-auth key at https://login.tailscale.com/admin/settings/keys and store it in the `password` field of an item named `Tailscale`. The local vars template reads it with `lookup('community.general.onepassword', 'Tailscale', field='password')`; run the playbook normally. The auth keys are one time uses pretty much.
 
 **Target server:**
 - Debian 12+ or Ubuntu 22.04+
