@@ -1,4 +1,15 @@
 ---
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: false
+  register: firewall_ufw_package
+
+- name: Establish firewall_runtime_tasks_safe
+  ansible.builtin.set_fact:
+    firewall_runtime_tasks_safe: "{{ (not ansible_check_mode) or not firewall_ufw_package.changed }}"
+
 # Set DEFAULT_FORWARD_POLICY before enabling UFW to avoid forwarding surprises.
 # Docker injects its own iptables rules before UFW chains, so Docker traffic
 # still works; the ufw-docker DOCKER-USER chain rules (deployed below) give
@@ -9,17 +20,20 @@
     regexp: '^DEFAULT_FORWARD_POLICY='
     line: 'DEFAULT_FORWARD_POLICY="{{ ufw_forward_policy }}"'
     state: present
+  when: firewall_runtime_tasks_safe | bool
   notify: Reload UFW
 
 - name: Set UFW default incoming policy to deny
   community.general.ufw:
     default: deny
     direction: incoming
+  when: firewall_runtime_tasks_safe | bool
 
 - name: Set UFW default outgoing policy to allow
   community.general.ufw:
     default: allow
     direction: outgoing
+  when: firewall_runtime_tasks_safe | bool
 
 # SSH is intentionally NOT in firewall_public_tcp_ports.
 # It is only reachable via the Tailscale WireGuard interface.
@@ -31,6 +45,7 @@
     interface: tailscale0
     direction: in
     comment: "SSH via Tailscale only — not public internet"
+  when: firewall_runtime_tasks_safe | bool
 
 - name: Allow public TCP ports (HTTP/HTTPS for Traefik)
   community.general.ufw:
@@ -38,6 +53,7 @@
     port: "{{ item | string }}"
     proto: tcp
     comment: "Public port {{ item }}"
+  when: firewall_runtime_tasks_safe | bool
   loop: "{{ firewall_public_tcp_ports }}"
 
 - name: Allow Dokploy panel via Tailscale only
@@ -48,7 +64,9 @@
     interface: tailscale0
     direction: in
     comment: "Dokploy panel via Tailscale only"
-  when: dokploy_tailscale_only | bool
+  when:
+    - firewall_runtime_tasks_safe | bool
+    - dokploy_tailscale_only | bool
 
 - name: Allow Dokploy panel publicly
   community.general.ufw:
@@ -56,7 +74,9 @@
     port: "{{ dokploy_port | string }}"
     proto: tcp
     comment: "Dokploy panel public access"
-  when: not (dokploy_tailscale_only | bool)
+  when:
+    - firewall_runtime_tasks_safe | bool
+    - not (dokploy_tailscale_only | bool)
 
 # Deploy the ufw-docker DOCKER-USER chain rules.
 # This adds a second *filter section after the existing after.rules content.
@@ -89,6 +109,7 @@
       -A ufw-docker-logging-deny -j DROP
       COMMIT
     state: present
+  when: firewall_runtime_tasks_safe | bool
   notify: Reload UFW
 
 # Allow Docker container traffic to reach public ports through UFW routing.
@@ -101,8 +122,10 @@
     proto: tcp
     port: "{{ item | string }}"
     comment: "Docker route for port {{ item }}"
+  when: firewall_runtime_tasks_safe | bool
   loop: "{{ docker_public_tcp_ports }}"
 
 - name: Enable UFW
   community.general.ufw:
     state: enabled
+  when: firewall_runtime_tasks_safe | bool

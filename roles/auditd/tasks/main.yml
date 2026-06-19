@@ -1,4 +1,17 @@
 ---
+- name: Install auditd packages
+  ansible.builtin.apt:
+    name:
+      - auditd
+      - audispd-plugins
+    state: present
+    update_cache: false
+  register: auditd_package
+
+- name: Set auditd runtime task safety
+  ansible.builtin.set_fact:
+    auditd_runtime_tasks_safe: "{{ (not (ansible_check_mode | bool)) or (not (auditd_package.changed | bool)) }}"
+
 - name: Deploy audit rules
   ansible.builtin.template:
     src: audit.rules.j2
@@ -7,6 +20,7 @@
     owner: root
     group: root
   notify: Restart auditd
+  when: auditd_runtime_tasks_safe | bool
 
 - name: Configure auditd log rotation settings
   ansible.builtin.lineinfile:
@@ -20,6 +34,7 @@
     - regexp: '^num_logs\s*='
       line: "num_logs = {{ audit_num_logs }}"
   notify: Restart auditd
+  when: auditd_runtime_tasks_safe | bool
 
 - name: Enable and start auditd
   ansible.builtin.systemd:
@@ -27,3 +42,4 @@
     enabled: true
     state: started
   ignore_errors: "{{ ansible_check_mode }}"
+  when: auditd_runtime_tasks_safe | bool
