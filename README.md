@@ -118,3 +118,18 @@ Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (includi
 | os_hardening disables IP forwarding | `os_network_forwarding: true` in group_vars |
 | Tailscale auth key already consumed | Playbook checks backend state; skips `tailscale up` if already `Running` |
 | Tailscale goes down | sshd still listens on port 22; keep VPS provider console access as emergency backdoor |
+
+
+## Migrating Dokploy to New Host
+
+In order to move Dokploy from one server to another, you'll need to first set everything up in shroud.
+After doing that, you'll want to 
+- Make a backup of the Web Server and restore it on the new instance
+- Move Docker volumes from the old instance to the new instance
+
+Previously this included,
+- Stop the Docker service - `systemctl stop docker.socket docker.service`
+- Tar the Docker volumes on the old server at `/var/lib/docker/volumes/`
+- Move tars to new server
+- Untar volumes
+- Start the Docker service
