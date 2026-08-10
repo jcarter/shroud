@@ -85,6 +85,7 @@ Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (includi
 | `dokploy_install` | `false` | Install Dokploy on this host. |
 | `dokploy_version` | `""` | Pin Dokploy version (empty = latest). |
 | `dokploy_advertise_addr` | `""` | Docker Swarm advertise address (empty = auto-detect). |
+| `dokploy_docker_dns_servers` | `["100.100.100.100"]` | Stable upstream DNS for Docker containers; defaults to Tailscale Quad100. |
 | `fail2ban_bantime` | `1h` | Ban duration. |
 | `fail2ban_maxretry` | `5` | Failures before ban. |
 | `auto_reboot` | `false` | Auto-reboot after unattended upgrades. |
@@ -115,6 +116,7 @@ Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (includi
 |---|---|
 | UFW locks out SSH | Tailscale role runs before firewall; SSH allowed on `tailscale0` before UFW enables |
 | Docker loses network | ufw-docker DOCKER-USER chain rules + `ufw route allow` preserve container traffic |
+| Containers capture an empty DNS resolver | Docker uses the configured Tailscale Quad100 resolver instead of transient host resolver state |
 | os_hardening disables IP forwarding | `os_network_forwarding: true` in group_vars |
 | Tailscale auth key already consumed | Playbook checks backend state; skips `tailscale up` if already `Running` |
 | Tailscale goes down | sshd still listens on port 22; keep VPS provider console access as emergency backdoor |

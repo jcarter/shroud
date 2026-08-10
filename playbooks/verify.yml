@@ -164,6 +164,21 @@
         success_msg: "PASS \u2014 Dokploy service is deployed"
       when: dokploy_install | bool
 
+    - name: Read Docker daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/docker/daemon.json
+      register: docker_daemon_config_file
+      when: dokploy_install | bool
+
+    - name: Assert Docker uses the configured DNS servers
+      ansible.builtin.assert:
+        that: >-
+          (docker_daemon_config_file.content | b64decode | from_json).dns
+          == dokploy_docker_dns_servers
+        fail_msg: "FAIL \u2014 Docker DNS servers do not match dokploy_docker_dns_servers"
+        success_msg: "PASS \u2014 Docker uses the configured stable DNS servers"
+      when: dokploy_install | bool
+
     # ------------------------------------------------------------------ summary
     - name: Hardening verification summary
       ansible.builtin.debug:

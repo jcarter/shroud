@@ -86,3 +86,5 @@ disable_samba: false           # Set true only on hosts where Samba is unwanted
 dokploy_install: false        # Set true to install Dokploy on this host
 dokploy_version: ""           # Empty = detect latest stable; set e.g. "v0.26.6" to pin
 dokploy_advertise_addr: ""    # Empty = auto-detect private LAN IP; set explicitly on public-only VPSes
+dokploy_docker_dns_servers:
+  - "100.100.100.100"         # Tailscale Quad100; stable Docker DNS with MagicDNS support

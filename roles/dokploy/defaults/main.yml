@@ -12,3 +12,9 @@ dokploy_version: ""
 # — common on public-only VPSes — set this explicitly to the server's primary IP.
 # Tailscale's 100.x CGNAT range does NOT match auto-detection.
 dokploy_advertise_addr: ""
+
+# Stable upstream resolvers for Docker's embedded DNS. Quad100 preserves
+# MagicDNS and avoids containers capturing an empty resolver during Tailscale
+# or DHCP resolver transitions.
+dokploy_docker_dns_servers:
+  - "100.100.100.100"
