@@ -21,6 +21,32 @@
 # Target a single role with tags:
 #   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml --tags firewall
 
+# Ansible modules need python3 (and python3-apt for check mode) on the target;
+# minimal Debian installs ship neither, so fact gathering below would fail.
+- name: Bootstrap Python on target
+  hosts: all
+  gather_facts: false
+  tags: [always]
+
+  tasks:
+    - name: Check for python3 and python3-apt
+      ansible.builtin.raw: test -x /usr/bin/python3 && /usr/bin/python3 -c 'import apt_pkg'
+      register: bootstrap_python_probe
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Stop dry run until Python exists on target
+      ansible.builtin.fail:
+        msg: "python3/python3-apt missing on target; run once without --check to bootstrap."
+      when:
+        - bootstrap_python_probe.rc != 0
+        - ansible_check_mode
+
+    - name: Install python3 and python3-apt
+      ansible.builtin.raw: apt-get update && apt-get install -y python3 python3-apt
+      when: bootstrap_python_probe.rc != 0
+
 - name: Harden server
   hosts: all
   gather_facts: true

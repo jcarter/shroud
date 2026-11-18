@@ -32,6 +32,7 @@ Sign in with `op`, then enable 1Password desktop CLI integration. Generate a new
 **Target server:**
 - Debian 12+ or Ubuntu 22.04+
 - Non-root user with `sudo` and SSH key access already configured
+- Python is installed automatically by the playbook's first play if missing
 
 ## Inventory
 
