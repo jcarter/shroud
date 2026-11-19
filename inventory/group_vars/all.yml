@@ -2,18 +2,20 @@
 # =============================================================================
 # devsec.hardening — ssh_hardening role variables
 # https://github.com/dev-sec/ansible-collection-hardening
+# Names must match devsec's defaults/main.yml; unknown names are silently ignored.
 # =============================================================================
 ssh_permit_root_login: "no"
-ssh_password_authentication: false
-ssh_challenge_response_authentication: false
-ssh_use_pam: true   # Session setup only (logind, loginuid for auditd); password auth stays off above
+ssh_server_password_login: false
+ssh_challengeresponseauthentication: false
+ssh_use_pam: true   # Session setup only (logind, loginuid for auditd); devsec still renders AuthenticationMethods publickey
 ssh_x11_forwarding: false
-ssh_max_auth_tries: 3
+ssh_max_auth_retries: 3
 ssh_login_grace_time: 20
 ssh_client_alive_interval: 300
 ssh_client_alive_count: 2
 ssh_allowed_users:
-  - deploy    # must match ansible_user in inventory/hosts.yml
+  - deploy    # must include ansible_user; hosts override this list in local.yml
+ssh_allow_users: "{{ ssh_allowed_users | join(' ') }}"   # devsec renders this as AllowUsers
 sftp_enabled: true
 
 # =============================================================================

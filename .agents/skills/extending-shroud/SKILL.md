@@ -98,8 +98,8 @@ my_service_tailscale_only: true   # inline comment explains the tradeoff
 Name booleans positively, as `<thing>_enabled` where `true` means on (`samba_enabled: false`, not `disable_samba: true`).
 
 `inventory/group_vars/all.yml` holds only:
-- `devsec.hardening` variables (`ssh_*`, `sysctl_overwrite`, `os_*`)
-- `ssh_allowed_users`, the fallback list; each host overrides it in `host_vars/<host>/local.yml`
+- `devsec.hardening` variables (`ssh_*`, `sysctl_overwrite`, `os_*`). Copy names from the collection's `roles/*/defaults/main.yml`; a misspelled name is silently ignored.
+- `ssh_allowed_users`, the fallback list; each host overrides it in `host_vars/<host>/local.yml`. `ssh_allow_users` joins it into devsec's `AllowUsers` string.
 - shared policy that standalone playbooks need, which do not load role defaults (currently `dokploy_install` and `dokploy_docker_dns_servers`, used by `verify.yml`)
 
 Do not copy role defaults into `group_vars`. Two copies drift.
