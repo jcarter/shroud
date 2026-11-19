@@ -4,6 +4,7 @@
     name:
       - unattended-upgrades
       - apt-listchanges
+      - needrestart
     state: present
     update_cache: false
   register: auto_updates_package
@@ -23,6 +24,14 @@
       ansible.builtin.template:
         src: 50unattended-upgrades.j2
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        mode: '0644'
+        owner: root
+        group: root
+
+    - name: Deploy needrestart config
+      ansible.builtin.template:
+        src: needrestart.conf.j2
+        dest: /etc/needrestart/conf.d/50-shroud.conf
         mode: '0644'
         owner: root
         group: root

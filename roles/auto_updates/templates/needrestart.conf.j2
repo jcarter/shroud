@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+$nrconf{restart} = '{{ 'a' if auto_update_restart_services | bool else 'l' }}';
+# Upstream already skips docker; restarting containerd would also disrupt running containers.
+$nrconf{override_rc}->{qr(^containerd)} = 0;

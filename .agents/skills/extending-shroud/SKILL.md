@@ -44,7 +44,7 @@ New roles go after `service_cleanup` unless they are hardening (go before it).
 
 ## Role Conventions
 
-A role owns the packages, config, and service for its concern. `baseline` installs only generic packages and refreshes the apt cache; do not add a role's own package to `baseline_packages`.
+A role owns the packages, config, and service for its concern. `baseline` installs only generic packages and refreshes the apt cache; do not add a role's own package to `baseline_packages`. Packages only one host needs go in `baseline_extra_packages` in that host's `local.yml`.
 
 ```yaml
 # tasks/main.yml — always use FQCN module names

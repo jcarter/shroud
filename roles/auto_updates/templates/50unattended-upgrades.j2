@@ -15,7 +15,4 @@ Unattended-Upgrade::Remove-New-Unused-Dependencies "{{ 'true' if auto_update_rem
 Unattended-Upgrade::Remove-Unused-Dependencies "{{ 'true' if auto_update_remove_unused | bool else 'false' }}";
 Unattended-Upgrade::Automatic-Reboot "{{ 'true' if auto_reboot | bool else 'false' }}";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
-{% if auto_update_mail | length > 0 %}
-Unattended-Upgrade::Mail "{{ auto_update_mail }}";
-Unattended-Upgrade::MailReport "on-change";
-{% endif %}
+Unattended-Upgrade::Automatic-Reboot-Time "{{ auto_reboot_time }}";

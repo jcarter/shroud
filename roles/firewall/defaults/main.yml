@@ -1,11 +1,7 @@
 ---
-firewall_public_tcp_ports:
-  - 80
-  - 443
-
-docker_public_tcp_ports:
-  - 80
-  - 443
+# Public web ports open only when Dokploy/Traefik is installed.
+firewall_public_tcp_ports: "{{ [80, 443] if dokploy_install | bool else [] }}"
+docker_public_tcp_ports: "{{ [80, 443] if dokploy_install | bool else [] }}"
 
 dokploy_port: 3000
 dokploy_tailscale_only: true

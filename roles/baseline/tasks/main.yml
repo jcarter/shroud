@@ -11,7 +11,7 @@
 
 - name: Install baseline packages
   ansible.builtin.apt:
-    name: "{{ baseline_packages }}"
+    name: "{{ baseline_packages + baseline_extra_packages }}"
     state: present
 
 - name: Set system timezone

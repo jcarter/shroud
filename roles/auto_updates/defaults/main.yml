@@ -1,4 +1,7 @@
 ---
-auto_reboot: false
-auto_update_mail: ""
+auto_reboot: true
+# Local host time; baseline_timezone is UTC, so about 3-4 a.m. US Central.
+auto_reboot_time: "09:00"
 auto_update_remove_unused: true
+# needrestart restarts services still using replaced libraries after updates.
+auto_update_restart_services: true

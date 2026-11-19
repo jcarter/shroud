@@ -1,4 +1,5 @@
 ---
 # tailscale_authkey: one-time key, needed only on a host's first run: -e tailscale_authkey=tskey-auth-...
 tailscale_ssh_enabled: false
-tailscale_up_flags: "--accept-routes"
+# Add --accept-routes only if this host should use subnet routers; applies on first join only.
+tailscale_up_flags: ""

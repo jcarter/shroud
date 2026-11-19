@@ -2,9 +2,11 @@
 baseline_timezone: "UTC"
 
 baseline_packages:
-  - needrestart
   - libpam-pwquality
   - curl
   - gnupg
   - lsb-release
   - apt-transport-https
+
+# Host-specific additions set in local.yml, e.g. linux-headers-amd64 so dkms modules rebuild on kernel updates.
+baseline_extra_packages: []

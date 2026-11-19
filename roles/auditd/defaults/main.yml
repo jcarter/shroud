@@ -1,4 +1,5 @@
 ---
-audit_log_size: 8192
+# MB per log file (auditd max_log_file).
+audit_log_size: 100
 audit_num_logs: 5
 audit_backlog_limit: 8192
