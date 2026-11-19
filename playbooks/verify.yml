@@ -77,6 +77,22 @@
       loop_control:
         label: "{{ item }}"
 
+    # ------------------------------------------------------------------ security updates
+    - name: Simulate a full upgrade
+      ansible.builtin.command: apt-get -s dist-upgrade
+      register: apt_simulation
+      changed_when: false
+
+    - name: Assert no security updates are pending
+      vars:
+        pending_security: "{{ apt_simulation.stdout_lines | select('search', '^Inst .*-security') | map('regex_replace', '^Inst (\\S+).*', '\\1') | list }}"
+      ansible.builtin.assert:
+        that: pending_security | length == 0
+        fail_msg: >-
+          FAIL — {{ pending_security | length }} security updates pending: {{ pending_security | join(', ') }}.
+          unattended-upgrades installs these daily; if this persists past a day it is not matching the security repo.
+        success_msg: "PASS — no security updates pending"
+
     # ------------------------------------------------------------------ fail2ban
     - name: Check fail2ban SSH jail status
       ansible.builtin.command: fail2ban-client status sshd

@@ -1,7 +1,9 @@
-Unattended-Upgrade::Allowed-Origins {
-    "${distro_id}:${distro_codename}-security";
-    "${distro_id}ESMApps:${distro_codename}-apps-security";
-    "${distro_id}ESM:${distro_codename}-infra-security";
+// Match by codename/archive: Debian's security Suite is "stable-security", so "${distro_id}:${distro_codename}-security" never matches.
+Unattended-Upgrade::Origins-Pattern {
+    "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+    "origin=Ubuntu,archive=${distro_codename}-security";
+    "origin=UbuntuESMApps,archive=${distro_codename}-apps-security";
+    "origin=UbuntuESM,archive=${distro_codename}-infra-security";
 };
 
 Unattended-Upgrade::Package-Blacklist {
