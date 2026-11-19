@@ -95,6 +95,8 @@ my_service_port: 9100
 my_service_tailscale_only: true   # inline comment explains the tradeoff
 ```
 
+Name booleans positively, as `<thing>_enabled` where `true` means on (`samba_enabled: false`, not `disable_samba: true`).
+
 `inventory/group_vars/all.yml` holds only:
 - `devsec.hardening` variables (`ssh_*`, `sysctl_overwrite`, `os_*`)
 - `ssh_allowed_users`, the fallback list; each host overrides it in `host_vars/<host>/local.yml`

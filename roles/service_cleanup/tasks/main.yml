@@ -1,32 +1,27 @@
 ---
-# Each block uses failed_when: false because the service may not be installed
-# on all target hosts. The role is additive — it does nothing on hosts where
-# the service is absent.
+# failed_when: false because a service may not be installed on every host; the task is then a no-op.
 
-- name: Disable avahi-daemon (mDNS — unnecessary on a VPS)
+- name: Set avahi-daemon (mDNS) state
   ansible.builtin.systemd:
     name: avahi-daemon
-    enabled: false
-    state: stopped
-  when: disable_avahi | bool
+    enabled: "{{ avahi_enabled | bool }}"
+    state: "{{ 'started' if avahi_enabled | bool else 'stopped' }}"
   failed_when: false
 
-- name: Disable bluetooth (unnecessary on a VPS)
+- name: Set bluetooth state
   ansible.builtin.systemd:
     name: bluetooth
-    enabled: false
-    state: stopped
-  when: disable_bluetooth | bool
+    enabled: "{{ bluetooth_enabled | bool }}"
+    state: "{{ 'started' if bluetooth_enabled | bool else 'stopped' }}"
   failed_when: false
 
-- name: Disable Samba services
+- name: Set Samba services state
   ansible.builtin.systemd:
     name: "{{ item }}"
-    enabled: false
-    state: stopped
+    enabled: "{{ samba_enabled | bool }}"
+    state: "{{ 'started' if samba_enabled | bool else 'stopped' }}"
   loop:
     - nmbd
     - smbd
     - winbind
-  when: disable_samba | bool
   failed_when: false

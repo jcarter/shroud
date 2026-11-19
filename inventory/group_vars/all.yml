@@ -6,7 +6,7 @@
 ssh_permit_root_login: "no"
 ssh_password_authentication: false
 ssh_challenge_response_authentication: false
-ssh_use_pam: false
+ssh_use_pam: true   # Session setup only (logind, loginuid for auditd); password auth stays off above
 ssh_x11_forwarding: false
 ssh_max_auth_tries: 3
 ssh_login_grace_time: 20

@@ -1,6 +1,5 @@
 ---
-disable_avahi: true
-disable_bluetooth: true
-# Samba: disable only when explicitly requested per host.
-# Set disable_samba: true in host_vars for hosts where Samba is unwanted.
-disable_samba: false
+# true keeps the service enabled and running; false stops and disables it.
+avahi_enabled: false
+bluetooth_enabled: false
+samba_enabled: false

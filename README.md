@@ -106,9 +106,9 @@ Role defaults live in each role's `defaults/main.yml`. Shared deployment policy 
 | `baseline_timezone`            | `"UTC"`                                 | Host timezone.                                                                                               |
 | `baseline_packages`            | `[libpam-pwquality, curl, gnupg, lsb-release, apt-transport-https]` | Base packages installed on every host.                                       |
 | `baseline_extra_packages`      | `[]`                                    | Host-specific packages; set `[linux-headers-amd64]` on hosts with dkms modules (e.g. NVIDIA).                |
-| `disable_avahi`                | `true`                                  | Disable avahi-daemon (mDNS).                                                                                 |
-| `disable_bluetooth`            | `true`                                  | Disable bluetooth service.                                                                                   |
-| `disable_samba`                | `false`                                 | Disable Samba services.                                                                                      |
+| `avahi_enabled`                | `false`                                 | Run avahi-daemon (mDNS).                                                                                     |
+| `bluetooth_enabled`            | `false`                                 | Run the bluetooth service.                                                                                   |
+| `samba_enabled`                | `false`                                 | Run Samba file sharing (smbd, nmbd, winbind).                                                                |
 | `ssh_allowed_users`            | `[deploy]`                              | SSH login allowlist; set per host in local.yml and must include `ansible_user`.                              |
 | `sysctl_overwrite`             | `net.ipv4.ip_forward: 1`                | Preserve Docker IP forwarding while applying OS hardening.                                                   |
 
@@ -126,7 +126,7 @@ Role defaults live in each role's `defaults/main.yml`. Shared deployment policy 
 | `fail2ban`                       | `fail2ban`        | SSH jail                                               |
 | `auto_updates`                   | `auto_updates`    | unattended-upgrades                                    |
 | `auditd`                         | `auditd`          | Audit logging rules                                    |
-| `service_cleanup`                | `service_cleanup` | Disable unnecessary services                           |
+| `service_cleanup`                | `service_cleanup` | Turn avahi, bluetooth and Samba on or off              |
 | `dokploy`                        | `dokploy`         | Install Dokploy (optional, gated by `dokploy_install`) |
 
 
