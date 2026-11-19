@@ -97,7 +97,7 @@ my_service_tailscale_only: true   # inline comment explains the tradeoff
 
 `inventory/group_vars/all.yml` holds only:
 - `devsec.hardening` variables (`ssh_*`, `sysctl_overwrite`, `os_*`)
-- `ssh_allowed_users`, which must match `ansible_user` in `inventory/hosts.yml`
+- `ssh_allowed_users`, the fallback list; each host overrides it in `host_vars/<host>/local.yml`
 - shared policy that standalone playbooks need, which do not load role defaults (currently `dokploy_install` and `dokploy_docker_dns_servers`, used by `verify.yml`)
 
 Do not copy role defaults into `group_vars`. Two copies drift.
@@ -175,7 +175,7 @@ Run `ansible-galaxy collection install -r requirements.yml` after adding.
 
 ## Adding a Host
 
-Add the host to `inventory/hosts.yml` (`ansible_host`, `ansible_user`, `ansible_become`, `ansible_port`). Secrets and per-host overrides go in `inventory/host_vars/<host>/local.yml`, which is gitignored; copy `local.yml.example` as a starting point. Add the host's `ansible_user` to `ssh_allowed_users` in `group_vars/all.yml`, or SSH hardening will lock that user out. `ansible.cfg` sets the inventory path, so commands need no `-i`.
+Add the host to `inventory/hosts.yml` (`ansible_host`, `ansible_user`, `ansible_become`, `ansible_port`). Connection details and per-host overrides go in `inventory/host_vars/<host>/local.yml`, which is gitignored; copy `local.yml.example` as a starting point. Set `ssh_allowed_users` there to include the host's `ansible_user`, or SSH hardening will lock that user out. Do not store the Tailscale auth key; pass a one-time key on the host's first run with `-e tailscale_authkey=tskey-auth-...`. `ansible.cfg` sets the inventory path, so commands need no `-i`.
 
 ## Common Mistakes
 
@@ -191,4 +191,4 @@ Add the host to `inventory/hosts.yml` (`ansible_host`, `ansible_user`, `ansible_
 | Copying role defaults into group_vars | Defaults live only in `roles/<name>/defaults/main.yml` |
 | Needing a variable in verify.yml but leaving it only in role defaults | Put it in `group_vars/all.yml`; standalone playbooks do not load role defaults |
 | Creating handlers/main.yml with no `notify` in tasks | Empty handler file — delete handlers/ entirely if no tasks use `notify` |
-| Adding a host without updating `ssh_allowed_users` | The new `ansible_user` is locked out of SSH |
+| Adding a host without setting `ssh_allowed_users` in its `local.yml` | The new `ansible_user` is locked out of SSH |

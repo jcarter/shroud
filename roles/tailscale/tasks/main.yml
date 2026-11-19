@@ -56,6 +56,17 @@
             else 'Stopped'
           }}
 
+    - name: Require an auth key to join the tailnet
+      ansible.builtin.assert:
+        that: tailscale_authkey | default('') | length > 0
+        fail_msg: >-
+          {{ inventory_hostname }} is not on the tailnet. Pass a one-time key:
+          -e tailscale_authkey=tskey-auth-...
+        quiet: true
+      when:
+        - not ansible_check_mode
+        - _ts_backend_state != 'Running'
+
     - name: Join tailnet with auth key
       ansible.builtin.shell: >
         tailscale up
@@ -66,8 +77,6 @@
       when:
         - not ansible_check_mode
         - _ts_backend_state != 'Running'
-        - tailscale_authkey is defined
-        - tailscale_authkey | length > 0
       changed_when: true
 
     # Check mode cannot start or join Tailscale. Only poll an already running node.

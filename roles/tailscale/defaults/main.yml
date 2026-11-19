@@ -1,4 +1,4 @@
 ---
-# tailscale_authkey: ""  # MUST be provided via --extra-vars or Ansible Vault
+# tailscale_authkey: one-time key, needed only on a host's first run: -e tailscale_authkey=tskey-auth-...
 tailscale_ssh_enabled: false
 tailscale_up_flags: "--accept-routes"

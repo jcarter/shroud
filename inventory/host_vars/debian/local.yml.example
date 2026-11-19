@@ -10,12 +10,7 @@ ansible_user: youruser
 ssh_allowed_users:
   - youruser
 
-# Tailscale pre-auth key (generate at https://login.tailscale.com/admin/settings/keys).
-# The playbook skips 'tailscale up' if the node is already Running, so a reusable key works.
-#
-# Option A: 1Password lookup — requires the 'op' CLI signed in and
-#           1Password desktop CLI integration enabled. Store the key in the "Tailscale" item's password field.
-tailscale_authkey: "{{ lookup('community.general.onepassword', 'Tailscale', field='password') }}"
-#
-# Option B: plain value — safe only because this file is gitignored.
-# tailscale_authkey: tskey-auth-...
+# Tailscale auth key: not stored here. On this host's first run, pass a one-time key
+# (generate at https://login.tailscale.com/admin/settings/keys):
+#   ansible-playbook playbooks/harden.yml -K -e tailscale_authkey=tskey-auth-...
+# Later runs skip 'tailscale up' because the node is already Running.

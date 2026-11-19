@@ -21,13 +21,13 @@ Role order is load-bearing: Tailscale must be up **before** the firewall role bl
 
 **On the control machine (macOS):**
 ```bash
-brew install ansible 1password-cli
+brew install ansible
 cd ~/Source/shroud
 ansible-galaxy collection install -r requirements.yml
 ```
 
-**Tailscale pre-auth key (1Password):**
-Sign in with `op`, then enable 1Password desktop CLI integration. Generate a new non-reusable pre-auth key at https://login.tailscale.com/admin/settings/keys and store it in the `password` field of an item named `Tailscale`. The local vars template reads it with `lookup('community.general.onepassword', 'Tailscale', field='password')`; run the playbook normally. The auth keys are one time uses pretty much.
+**Tailscale pre-auth key:**
+Generate a non-reusable pre-auth key at https://login.tailscale.com/admin/settings/keys and pass it on the host's first run with `-e tailscale_authkey=tskey-auth-...`. It is not stored anywhere; later runs skip `tailscale up` because the node is already joined. Start the command with a space so fish keeps it out of history.
 
 **Target server:**
 - Debian 12+ or Ubuntu 22.04+
@@ -44,7 +44,7 @@ Copy the host_vars template and fill in your connection details:
 cp inventory/host_vars/debian/local.yml.example inventory/host_vars/debian/local.yml
 ```
 
-Edit `local.yml` with your server's IP and user. The Tailscale auth key is read from the 1Password item `Tailscale` by default. This file is gitignored and loaded automatically — no extra flags needed. After the first run, switch `ansible_host` to the Tailscale IP (e.g. `100.x.y.z`) or MagicDNS name.
+Edit `local.yml` with your server's IP and user. This file is gitignored and loaded automatically — no extra flags needed. After the first run, switch `ansible_host` to the Tailscale IP (e.g. `100.x.y.z`) or MagicDNS name.
 
 ## Usage
 
@@ -55,8 +55,8 @@ Edit `local.yml` with your server's IP and user. The Tailscale auth key is read 
 # Preview changes (dry run — no changes made)
 ansible-playbook playbooks/harden.yml --check --diff -K
 
-# First run (tailscale_authkey is read from host_vars/debian/local.yml)
-ansible-playbook playbooks/harden.yml -K
+# First run (leading space keeps the one-time key out of fish history)
+ ansible-playbook playbooks/harden.yml -K -e tailscale_authkey=tskey-auth-...
 
 # Subsequent runs (via Tailscale — sudo password still required unless NOPASSWD)
 ansible-playbook playbooks/harden.yml -K
@@ -78,7 +78,7 @@ Role defaults live in each role's `defaults/main.yml`. Shared deployment policy 
 
 | Variable | Default | Description |
 |---|---|---|
-| `tailscale_authkey` | _(none — required)_ | Tailscale pre-auth key. Set in `host_vars/*/local.yml`; the template reads the 1Password item `Tailscale` password field. |
+| `tailscale_authkey` | _(none)_ | One-time Tailscale pre-auth key. Required only on a host's first run; pass with `-e`. |
 | `dokploy_install` | `false` | Install Dokploy on this host. |
 | `dokploy_docker_dns_servers` | `["100.100.100.100"]` | Stable upstream DNS for Docker containers; defaults to Tailscale Quad100. |
 | `tailscale_ssh_enabled` | `false` | Enable Tailscale SSH daemon (separate from sshd). |
