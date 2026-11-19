@@ -18,75 +18,71 @@
     update_cache: true
   when: tailscale_keyring.changed or tailscale_repository.changed
 
-- name: Determine whether Tailscale runtime tasks are safe
-  ansible.builtin.set_fact:
-    tailscale_runtime_tasks_safe: "{{ (not (ansible_check_mode | bool)) or ((not (tailscale_keyring.changed | bool)) and (not (tailscale_repository.changed | bool))) }}"
-
+# A new repository is only predicted in check mode, so apt cannot use it yet.
 - name: Install Tailscale
-  when: tailscale_runtime_tasks_safe | bool
   ansible.builtin.apt:
     name: tailscale
     state: present
+    update_cache: false
+  when: not ansible_check_mode or not (tailscale_keyring.changed or tailscale_repository.changed)
 
-- name: Enable and start tailscaled service
-  when: tailscale_runtime_tasks_safe | bool
-  ansible.builtin.systemd:
-    name: tailscaled
-    enabled: true
-    state: started
-  ignore_errors: "{{ ansible_check_mode }}"
+- name: Check whether Tailscale is installed
+  ansible.builtin.stat:
+    path: /usr/bin/tailscale
+  register: tailscale_binary
 
-- name: Get current Tailscale backend state
-  when: tailscale_runtime_tasks_safe | bool
-  ansible.builtin.command: tailscale status --json
-  register: _ts_status_raw
-  changed_when: false
-  failed_when: false
+- name: Start Tailscale and establish tailnet access
+  when: not ansible_check_mode or tailscale_binary.stat.exists
+  block:
+    - name: Enable and start tailscaled service
+      ansible.builtin.systemd:
+        name: tailscaled
+        enabled: true
+        state: started
 
-- name: Parse Tailscale backend state
-  ansible.builtin.set_fact:
-    _ts_backend_state: "{{ (_ts_status_raw.stdout | from_json).BackendState | default('Stopped') }}"
-  when:
-    - tailscale_runtime_tasks_safe | bool
-    - _ts_status_raw.rc | default(1) == 0
-    - _ts_status_raw.stdout | default('') | length > 2
+    - name: Get current Tailscale backend state
+      ansible.builtin.command: tailscale status --json
+      check_mode: false
+      register: _ts_status_raw
+      changed_when: false
+      failed_when: false
 
-- name: Default Tailscale state when not parseable
-  ansible.builtin.set_fact:
-    _ts_backend_state: "Stopped"
-  when:
-    - tailscale_runtime_tasks_safe | bool
-    - _ts_backend_state is not defined
+    - name: Parse Tailscale backend state
+      ansible.builtin.set_fact:
+        _ts_backend_state: >-
+          {{
+            (_ts_status_raw.stdout | from_json).BackendState | default('Stopped')
+            if _ts_status_raw.rc == 0 and _ts_status_raw.stdout | trim | length > 0
+            else 'Stopped'
+          }}
 
-- name: Join tailnet with auth key
-  ansible.builtin.shell: >
-    tailscale up
-    --authkey='{{ tailscale_authkey }}'
-    {{ tailscale_up_flags }}
-    {{ '--ssh' if tailscale_ssh_enabled | bool else '' }}
-  no_log: true
-  when:
-    - tailscale_runtime_tasks_safe | bool
-    - tailscale_authkey is defined
-    - tailscale_authkey | length > 0
-    - (_ts_backend_state | default('Stopped')) != "Running"
-  changed_when: true
+    - name: Join tailnet with auth key
+      ansible.builtin.shell: >
+        tailscale up
+        --authkey='{{ tailscale_authkey }}'
+        {{ tailscale_up_flags }}
+        {{ '--ssh' if tailscale_ssh_enabled | bool else '' }}
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - _ts_backend_state != 'Running'
+        - tailscale_authkey is defined
+        - tailscale_authkey | length > 0
+      changed_when: true
 
-- name: Wait for Tailscale to obtain an IP address
-  ansible.builtin.command: tailscale ip -4
-  register: _ts_ip_poll
-  until: _ts_ip_poll.rc == 0 and _ts_ip_poll.stdout | trim | length > 0
-  retries: 12
-  delay: 5
-  changed_when: false
-  when: tailscale_runtime_tasks_safe | bool
+    # Check mode cannot start or join Tailscale. Only poll an already running node.
+    - name: Confirm Tailscale has an IPv4 address
+      when: not ansible_check_mode or _ts_backend_state == 'Running'
+      block:
+        - name: Wait for Tailscale to obtain an IP address
+          ansible.builtin.command: tailscale ip -4
+          check_mode: false
+          register: _ts_ip_poll
+          until: _ts_ip_poll.rc == 0 and _ts_ip_poll.stdout | trim | length > 0
+          retries: 12
+          delay: 5
+          changed_when: false
 
-- name: Set Tailscale IP as host fact for subsequent roles
-  ansible.builtin.set_fact:
-    tailscale_ipv4: "{{ _ts_ip_poll.stdout | trim }}"
-  when: tailscale_runtime_tasks_safe | bool
-
-- name: Display Tailscale IP
-  ansible.builtin.debug:
-    msg: "Tailscale IP: {{ tailscale_ipv4 }}"
-  when: tailscale_runtime_tasks_safe | bool
+        - name: Display Tailscale IP
+          ansible.builtin.debug:
+            msg: "Tailscale IP: {{ _ts_ip_poll.stdout | trim }}"

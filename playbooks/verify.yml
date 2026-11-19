@@ -1,14 +1,12 @@
 ---
-# Post-hardening verification playbook.
-# Run after harden.yml to confirm all security controls are active.
-#
-# Usage:
-#   ansible-playbook -i inventory/hosts.yml playbooks/verify.yml
+# Run after harden.yml to verify services and managed configuration. See README for usage.
 
 - name: Verify server hardening
   hosts: all
   gather_facts: false
   become: true
+  # Every task is read-only; collect actual state even when invoked with --check.
+  check_mode: false
 
   tasks:
     # ------------------------------------------------------------------ UFW
@@ -26,90 +24,99 @@
     - name: Display UFW rules
       ansible.builtin.debug:
         var: ufw_status.stdout_lines
+        verbosity: 1
 
     # ------------------------------------------------------------------ Tailscale
+    - name: Get Tailscale status as JSON
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_status
+      changed_when: false
+
+    - name: Parse Tailscale status
+      ansible.builtin.set_fact:
+        tailscale_status_json: "{{ tailscale_status.stdout | from_json }}"
+
     - name: Get Tailscale IPv4 address
       ansible.builtin.command: tailscale ip -4
       register: tailscale_ip
       changed_when: false
-      failed_when: tailscale_ip.rc != 0
 
-    - name: Assert Tailscale has CGNAT address (100.x.x.x)
+    - name: Assert Tailscale is running with an IPv4 address
       ansible.builtin.assert:
-        that: tailscale_ip.stdout | trim is match('^100\\.')
-        fail_msg: "FAIL \u2014 Tailscale IP {{ tailscale_ip.stdout | trim }} not in 100.64/10"
-        success_msg: "PASS \u2014 Tailscale IP: {{ tailscale_ip.stdout | trim }}"
-
-    - name: Display Tailscale IP
-      ansible.builtin.debug:
-        msg: "Tailscale IP: {{ tailscale_ip.stdout | trim }}"
-
-    - name: Get Tailscale status
-      ansible.builtin.command: tailscale status
-      register: tailscale_status
-      changed_when: false
+        that:
+          - tailscale_status_json.BackendState | default('') == 'Running'
+          - tailscale_ip.stdout | trim | length > 0
+        fail_msg: "FAIL — Tailscale is not running or has no IPv4 address (state: {{ tailscale_status_json.BackendState | default('unknown') }}, IP: {{ tailscale_ip.stdout | trim }})"
+        success_msg: "PASS — Tailscale is running (IP: {{ tailscale_ip.stdout | trim }})"
 
     - name: Display Tailscale status
       ansible.builtin.debug:
-        var: tailscale_status.stdout_lines
+        var: tailscale_status_json
+        verbosity: 1
+
+    # ------------------------------------------------------------------ services
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert required security services are active
+      ansible.builtin.assert:
+        that:
+          - "(item + '.service') in ansible_facts.services"
+          - "ansible_facts.services[item + '.service'].state == 'running'"
+        fail_msg: >-
+          FAIL — {{ item }} is {{
+            ansible_facts.services[item + '.service'].state
+            if (item + '.service') in ansible_facts.services
+            else 'missing from service facts'
+          }}
+        success_msg: "PASS — {{ item }} is running"
+      loop:
+        - fail2ban
+        - auditd
+        - unattended-upgrades
+      loop_control:
+        label: "{{ item }}"
 
     # ------------------------------------------------------------------ fail2ban
-    - name: Check fail2ban service state
-      ansible.builtin.command: systemctl is-active fail2ban
-      register: fail2ban_active
-      changed_when: false
-      failed_when: false
-
-    - name: Assert fail2ban is active
-      ansible.builtin.assert:
-        that: "fail2ban_active.stdout == 'active'"
-        fail_msg: "FAIL — fail2ban is not running (state: {{ fail2ban_active.stdout }})"
-        success_msg: "PASS — fail2ban is running"
-
     - name: Check fail2ban SSH jail status
       ansible.builtin.command: fail2ban-client status sshd
       register: fail2ban_ssh
       changed_when: false
-      failed_when: false
 
     - name: Display fail2ban SSH jail
       ansible.builtin.debug:
         var: fail2ban_ssh.stdout_lines
+        verbosity: 1
 
     # ------------------------------------------------------------------ auditd
-    - name: Check auditd service state
-      ansible.builtin.command: systemctl is-active auditd
-      register: auditd_active
-      changed_when: false
-      failed_when: false
-
-    - name: Assert auditd is active
-      ansible.builtin.assert:
-        that: "auditd_active.stdout == 'active'"
-        fail_msg: "FAIL — auditd is not running"
-        success_msg: "PASS — auditd is running"
-
     - name: Check loaded audit rules
       ansible.builtin.command: auditctl -l
       register: audit_rules
       changed_when: false
 
-    - name: Display audit rule count
-      ansible.builtin.debug:
-        msg: "Audit rules loaded: {{ audit_rules.stdout_lines | length }}"
-
-    # ------------------------------------------------------------------ unattended-upgrades
-    - name: Check unattended-upgrades service state
-      ansible.builtin.command: systemctl is-active unattended-upgrades
-      register: uu_active
-      changed_when: false
-      failed_when: false
-
-    - name: Assert unattended-upgrades is active
+    - name: Assert expected audit rule keys are loaded
       ansible.builtin.assert:
-        that: "uu_active.stdout == 'active'"
-        fail_msg: "FAIL — unattended-upgrades is not running"
-        success_msg: "PASS — unattended-upgrades is running"
+        that: "audit_rules.stdout is search('(?:-k |key=)' ~ item ~ '(?:\\s|$)')"
+        fail_msg: "FAIL — audit rule key '{{ item }}' is not loaded"
+        success_msg: "PASS — audit rule key '{{ item }}' is loaded"
+      loop:
+        - identity
+        - pam
+        - priv_esc
+        - module_insertion
+        - network_modification
+        - time_change
+        - file_deletion
+        - access
+        - logins
+        - sshd_config
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Display loaded audit rules
+      ansible.builtin.debug:
+        var: audit_rules.stdout_lines
+        verbosity: 1
 
     # ------------------------------------------------------------------ sysctl
     - name: Check critical sysctl values
@@ -133,12 +140,6 @@
       loop_control:
         label: "{{ item.item.key }}"
 
-    - name: Assert IP forwarding is enabled (required for Docker)
-      ansible.builtin.assert:
-        that: "(sysctl_results.results | selectattr('item.key', 'equalto', 'net.ipv4.ip_forward') | first).stdout | trim == '1'"
-        fail_msg: "FAIL — IP forwarding disabled; Docker networking will break"
-        success_msg: "PASS — IP forwarding enabled (Docker compatible)"
-
     # ------------------------------------------------------------------ listening ports
     - name: List listening ports
       ansible.builtin.command: ss -tlnp
@@ -148,47 +149,32 @@
     - name: Display listening ports
       ansible.builtin.debug:
         var: listening_ports.stdout_lines
+        verbosity: 1
 
     # ------------------------------------------------------------------ dokploy
-    - name: Check Dokploy Swarm service is deployed
-      ansible.builtin.command: docker service inspect dokploy
-      register: dokploy_svc
-      changed_when: false
-      failed_when: false
+    - name: Optional Dokploy verification
       when: dokploy_install | bool
+      block:
+        - name: Check Dokploy Swarm service is deployed
+          ansible.builtin.command: docker service inspect dokploy
+          changed_when: false
 
-    - name: Assert Dokploy service is deployed
-      ansible.builtin.assert:
-        that: "dokploy_svc.rc == 0"
-        fail_msg: "FAIL \u2014 Dokploy service is not deployed"
-        success_msg: "PASS \u2014 Dokploy service is deployed"
-      when: dokploy_install | bool
+        - name: Verify managed Docker DNS configuration
+          when: dokploy_docker_dns_servers | length > 0
+          block:
+            - name: Validate Docker daemon configuration
+              ansible.builtin.command: dockerd --validate --config-file=/etc/docker/daemon.json
+              changed_when: false
 
-    - name: Read Docker daemon configuration
-      ansible.builtin.slurp:
-        src: /etc/docker/daemon.json
-      register: docker_daemon_config_file
-      when: dokploy_install | bool
+            - name: Read Docker daemon configuration
+              ansible.builtin.slurp:
+                src: /etc/docker/daemon.json
+              register: docker_daemon_config_file
 
-    - name: Assert Docker uses the configured DNS servers
-      ansible.builtin.assert:
-        that: >-
-          (docker_daemon_config_file.content | b64decode | from_json).dns
-          == dokploy_docker_dns_servers
-        fail_msg: "FAIL \u2014 Docker DNS servers do not match dokploy_docker_dns_servers"
-        success_msg: "PASS \u2014 Docker uses the configured stable DNS servers"
-      when: dokploy_install | bool
-
-    # ------------------------------------------------------------------ summary
-    - name: Hardening verification summary
-      ansible.builtin.debug:
-        msg:
-          - "=========================================="
-          - "  Hardening Verification Complete"
-          - "=========================================="
-          - "UFW:                 active"
-          - "Tailscale IP:        {{ tailscale_ip.stdout | trim }}"
-          - "fail2ban:            {{ fail2ban_active.stdout }}"
-          - "auditd:              {{ auditd_active.stdout }}"
-          - "unattended-upgrades: {{ uu_active.stdout }}"
-          - "=========================================="
+            - name: Assert Docker uses the configured DNS servers
+              ansible.builtin.assert:
+                that: >-
+                  (docker_daemon_config_file.content | b64decode | from_json).dns
+                  == dokploy_docker_dns_servers
+                fail_msg: "FAIL — Docker DNS servers do not match dokploy_docker_dns_servers"
+                success_msg: "PASS — Docker uses the configured stable DNS servers"

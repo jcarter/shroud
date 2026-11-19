@@ -32,6 +32,7 @@ Sign in with `op`, then enable 1Password desktop CLI integration. Generate a new
 **Target server:**
 - Debian 12+ or Ubuntu 22.04+
 - Non-root user with `sudo` and SSH key access already configured
+- Python is installed automatically by the playbook's first play if missing
 
 ## Inventory
 
@@ -52,19 +53,19 @@ Edit `local.yml` with your server's IP and user. The Tailscale auth key is read 
 # ansible-playbook ... -K
 
 # Preview changes (dry run — no changes made)
-ansible-playbook -i inventory/hosts.yml playbooks/harden.yml --check --diff -K
+ansible-playbook playbooks/harden.yml --check --diff -K
 
 # First run (tailscale_authkey is read from host_vars/debian/local.yml)
-ansible-playbook -i inventory/hosts.yml playbooks/harden.yml -K
+ansible-playbook playbooks/harden.yml -K
 
 # Subsequent runs (via Tailscale — sudo password still required unless NOPASSWD)
-ansible-playbook -i inventory/hosts.yml playbooks/harden.yml -K
+ansible-playbook playbooks/harden.yml -K
 
 # Target a specific role
-ansible-playbook -i inventory/hosts.yml playbooks/harden.yml --tags firewall -K
+ansible-playbook playbooks/harden.yml --tags firewall -K
 
 # Verify hardening
-ansible-playbook -i inventory/hosts.yml playbooks/verify.yml -K
+ansible-playbook playbooks/verify.yml -K
 ```
 
 > **Tip:** To avoid typing the password on every run, add `deploy ALL=(ALL) NOPASSWD:ALL`
@@ -73,19 +74,19 @@ ansible-playbook -i inventory/hosts.yml playbooks/verify.yml -K
 
 ## Variables
 
-Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (including secrets) go in `inventory/host_vars/<hostname>/local.yml` (gitignored — see Inventory above).
+Role defaults live in each role's `defaults/main.yml`. Shared deployment policy used by roles and standalone playbooks lives in `inventory/group_vars/all.yml`. Host-specific overrides (including secrets) go in `inventory/host_vars/<hostname>/local.yml` (gitignored — see Inventory above).
 
 | Variable | Default | Description |
 |---|---|---|
 | `tailscale_authkey` | _(none — required)_ | Tailscale pre-auth key. Set in `host_vars/*/local.yml`; the template reads the 1Password item `Tailscale` password field. |
+| `dokploy_install` | `false` | Install Dokploy on this host. |
+| `dokploy_docker_dns_servers` | `["100.100.100.100"]` | Stable upstream DNS for Docker containers; defaults to Tailscale Quad100. |
 | `tailscale_ssh_enabled` | `false` | Enable Tailscale SSH daemon (separate from sshd). |
 | `firewall_public_tcp_ports` | `[80, 443]` | TCP ports open to the public internet. |
 | `dokploy_port` | `3000` | Dokploy panel port. |
 | `dokploy_tailscale_only` | `true` | Restrict Dokploy to Tailscale interface. |
-| `dokploy_install` | `false` | Install Dokploy on this host. |
 | `dokploy_version` | `""` | Pin Dokploy version (empty = latest). |
 | `dokploy_advertise_addr` | `""` | Docker Swarm advertise address (empty = auto-detect). |
-| `dokploy_docker_dns_servers` | `["100.100.100.100"]` | Stable upstream DNS for Docker containers; defaults to Tailscale Quad100. |
 | `fail2ban_bantime` | `1h` | Ban duration. |
 | `fail2ban_maxretry` | `5` | Failures before ban. |
 | `auto_reboot` | `false` | Auto-reboot after unattended upgrades. |
@@ -93,7 +94,7 @@ Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (includi
 | `disable_avahi` | `true` | Disable avahi-daemon (mDNS). |
 | `disable_bluetooth` | `true` | Disable bluetooth service. |
 | `disable_samba` | `false` | Disable Samba services. |
-| `os_network_forwarding` | `true` | IP forwarding (required for Docker). |
+| `sysctl_overwrite` | `net.ipv4.ip_forward: 1` | Preserve Docker IP forwarding while applying OS hardening. |
 
 ## Roles
 
@@ -117,7 +118,7 @@ Defaults are in `inventory/group_vars/all.yml`. Host-specific overrides (includi
 | UFW locks out SSH | Tailscale role runs before firewall; SSH allowed on `tailscale0` before UFW enables |
 | Docker loses network | ufw-docker DOCKER-USER chain rules + `ufw route allow` preserve container traffic |
 | Containers capture an empty DNS resolver | Docker uses the configured Tailscale Quad100 resolver instead of transient host resolver state |
-| os_hardening disables IP forwarding | `os_network_forwarding: true` in group_vars |
+| os_hardening disables IP forwarding | `sysctl_overwrite` in group_vars preserves Docker forwarding |
 | Tailscale auth key already consumed | Playbook checks backend state; skips `tailscale up` if already `Running` |
 | Tailscale goes down | sshd still listens on port 22; keep VPS provider console access as emergency backdoor |
 

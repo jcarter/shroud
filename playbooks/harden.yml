@@ -1,25 +1,33 @@
 ---
-# Main hardening playbook.
-# Run order is critical:
-#   1. baseline       — installs packages needed by subsequent roles
-#   2. tailscale      — joins tailnet (must complete BEFORE firewall locks SSH)
-#   3. os_hardening   — kernel/sysctl hardening (devsec.hardening)
-#   4. ssh_hardening  — sshd config (devsec.hardening)
-#   5. firewall       — UFW + ufw-docker (blocks public SSH after Tailscale is up)
-#   6. fail2ban       — SSH jail (defense-in-depth)
-#   7. auto_updates   — unattended-upgrades
-#   8. auditd         — audit logging
-#   9. service_cleanup — disable unnecessary services
-#  10. dokploy        — Dokploy install (optional, gated by dokploy_install)
-# First run:
-#   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml \
-#     --extra-vars "tailscale_authkey=tskey-auth-..."
-#
-# Subsequent runs (after updating ansible_host to Tailscale IP):
-#   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml
-#
-# Target a single role with tags:
-#   ansible-playbook -i inventory/hosts.yml playbooks/harden.yml --tags firewall
+# Main hardening playbook. Role order is load-bearing: baseline prepares
+# dependencies, and Tailscale must join before firewall restricts SSH to
+# tailscale0.
+
+# Ansible modules need python3 (and python3-apt for check mode) on the target;
+# minimal Debian installs ship neither, so fact gathering below would fail.
+- name: Bootstrap Python on target
+  hosts: all
+  gather_facts: false
+  tags: [always]
+
+  tasks:
+    - name: Check for python3 and python3-apt
+      ansible.builtin.raw: test -x /usr/bin/python3 && /usr/bin/python3 -c 'import apt_pkg'
+      register: bootstrap_python_probe
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Stop dry run until Python exists on target
+      ansible.builtin.fail:
+        msg: "python3/python3-apt missing on target; run once without --check to bootstrap."
+      when:
+        - bootstrap_python_probe.rc != 0
+        - ansible_check_mode
+
+    - name: Install python3 and python3-apt
+      ansible.builtin.raw: apt-get update && apt-get install -y python3 python3-apt
+      when: bootstrap_python_probe.rc != 0
 
 - name: Harden server
   hosts: all

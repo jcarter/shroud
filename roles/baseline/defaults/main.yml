@@ -2,12 +2,6 @@
 baseline_timezone: "UTC"
 
 baseline_packages:
-  - ufw
-  - fail2ban
-  - unattended-upgrades
-  - auditd
-  - audispd-plugins
-  - apt-listchanges
   - needrestart
   - libpam-pwquality
   - curl

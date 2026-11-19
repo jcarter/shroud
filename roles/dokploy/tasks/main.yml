@@ -10,65 +10,63 @@
 #     Run this role before any service that binds those ports.
 #   - Docker is installed by the Dokploy install script if not already present.
 
-- name: Check if Dokploy Swarm service already exists
-  ansible.builtin.command: docker service inspect dokploy
-  register: dokploy_service_check
-  changed_when: false
-  failed_when: false
+- name: Dokploy installation and Docker configuration
   when: dokploy_install | bool
+  block:
+    - name: Check if Dokploy Swarm service already exists
+      ansible.builtin.command: docker service inspect dokploy
+      register: dokploy_service_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
 
-- name: Run Dokploy install script
-  ansible.builtin.shell:
-    cmd: curl -sSL https://dokploy.com/install.sh | sh
-  environment:
-    # Empty string falls through bash's :- operator to the script's auto-detection.
-    DOKPLOY_VERSION: "{{ dokploy_version }}"
-    ADVERTISE_ADDR: "{{ dokploy_advertise_addr }}"
-  when:
-    - dokploy_install | bool
-    - dokploy_service_check.rc != 0
+    - name: Run Dokploy install script
+      ansible.builtin.shell:
+        cmd: curl -sSL https://dokploy.com/install.sh | sh
+      environment:
+        # Empty string falls through bash's :- operator to the script's auto-detection.
+        DOKPLOY_VERSION: "{{ dokploy_version }}"
+        ADVERTISE_ADDR: "{{ dokploy_advertise_addr }}"
+      when:
+        - not (ansible_check_mode | bool)
+        - dokploy_service_check.rc != 0
 
-- name: Check for existing Docker daemon configuration
-  ansible.builtin.stat:
-    path: /etc/docker/daemon.json
-  register: dokploy_docker_daemon_config_stat
-  when: dokploy_install | bool
+    - name: Configure stable Docker DNS servers
+      when: dokploy_docker_dns_servers | length > 0
+      block:
+        - name: Check for Docker configuration directory
+          ansible.builtin.stat:
+            path: /etc/docker
+          register: dokploy_docker_config_dir_stat
 
-- name: Read existing Docker daemon configuration
-  ansible.builtin.slurp:
-    src: /etc/docker/daemon.json
-  register: dokploy_docker_daemon_config_file
-  when:
-    - dokploy_install | bool
-    - dokploy_docker_daemon_config_stat.stat.exists
+        - name: Check for existing Docker daemon configuration
+          ansible.builtin.stat:
+            path: /etc/docker/daemon.json
+          register: dokploy_docker_daemon_config_stat
 
-- name: Parse existing Docker daemon configuration
-  ansible.builtin.set_fact:
-    dokploy_docker_daemon_config: >-
-      {{
-        (dokploy_docker_daemon_config_file.content | b64decode | from_json)
-        if dokploy_docker_daemon_config_stat.stat.exists
-        else {}
-      }}
-  when: dokploy_install | bool
+        - name: Read existing Docker daemon configuration
+          ansible.builtin.slurp:
+            src: /etc/docker/daemon.json
+          register: dokploy_docker_daemon_config_file
+          when: dokploy_docker_daemon_config_stat.stat.exists
 
-- name: Configure stable Docker DNS servers
-  ansible.builtin.copy:
-    content: "{{ dokploy_docker_daemon_config | combine({'dns': dokploy_docker_dns_servers}) | to_nice_json }}\n"
-    dest: /etc/docker/daemon.json
-    owner: root
-    group: root
-    mode: "0640"
-    backup: true
-  when:
-    - dokploy_install | bool
-    - dokploy_docker_dns_servers | length > 0
-  notify: Restart Docker
+        - name: Parse existing Docker daemon configuration
+          ansible.builtin.set_fact:
+            dokploy_docker_daemon_config: >-
+              {{
+                (dokploy_docker_daemon_config_file.content | b64decode | from_json)
+                if dokploy_docker_daemon_config_stat.stat.exists
+                else {}
+              }}
 
-- name: Validate Docker daemon configuration
-  ansible.builtin.command:
-    cmd: dockerd --validate --config-file=/etc/docker/daemon.json
-  changed_when: false
-  when:
-    - dokploy_install | bool
-    - dokploy_docker_dns_servers | length > 0
+        - name: Write Docker daemon configuration
+          ansible.builtin.copy:
+            content: "{{ dokploy_docker_daemon_config | combine({'dns': dokploy_docker_dns_servers}) | to_nice_json }}\n"
+            dest: /etc/docker/daemon.json
+            owner: root
+            group: root
+            mode: "0640"
+            backup: true
+            validate: "dockerd --validate --config-file=%s"
+          when: (not (ansible_check_mode | bool)) or (dokploy_docker_config_dir_stat.stat.isdir | default(false))
+          notify: Restart Docker

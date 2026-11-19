@@ -8,38 +8,33 @@
     update_cache: false
   register: auditd_package
 
-- name: Set auditd runtime task safety
-  ansible.builtin.set_fact:
-    auditd_runtime_tasks_safe: "{{ (not (ansible_check_mode | bool)) or (not (auditd_package.changed | bool)) }}"
+- name: Configure and start auditd
+  when: not ansible_check_mode or not auditd_package.changed
+  block:
+    - name: Deploy audit rules
+      ansible.builtin.template:
+        src: audit.rules.j2
+        dest: /etc/audit/rules.d/hardening.rules
+        mode: '0640'
+        owner: root
+        group: root
+      notify: Restart auditd
 
-- name: Deploy audit rules
-  ansible.builtin.template:
-    src: audit.rules.j2
-    dest: /etc/audit/rules.d/hardening.rules
-    mode: '0640'
-    owner: root
-    group: root
-  notify: Restart auditd
-  when: auditd_runtime_tasks_safe | bool
+    - name: Configure auditd log rotation settings
+      ansible.builtin.lineinfile:
+        path: /etc/audit/auditd.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - regexp: '^max_log_file\s*='
+          line: "max_log_file = {{ audit_log_size }}"
+        - regexp: '^num_logs\s*='
+          line: "num_logs = {{ audit_num_logs }}"
+      notify: Restart auditd
 
-- name: Configure auditd log rotation settings
-  ansible.builtin.lineinfile:
-    path: /etc/audit/auditd.conf
-    regexp: "{{ item.regexp }}"
-    line: "{{ item.line }}"
-    state: present
-  loop:
-    - regexp: '^max_log_file\s*='
-      line: "max_log_file = {{ audit_log_size }}"
-    - regexp: '^num_logs\s*='
-      line: "num_logs = {{ audit_num_logs }}"
-  notify: Restart auditd
-  when: auditd_runtime_tasks_safe | bool
-
-- name: Enable and start auditd
-  ansible.builtin.systemd:
-    name: auditd
-    enabled: true
-    state: started
-  ignore_errors: "{{ ansible_check_mode }}"
-  when: auditd_runtime_tasks_safe | bool
+    - name: Enable and start auditd
+      ansible.builtin.systemd:
+        name: auditd
+        enabled: true
+        state: started
